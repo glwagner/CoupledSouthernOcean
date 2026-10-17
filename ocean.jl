@@ -35,7 +35,8 @@ include("glorys_bathymetry.jl")
 # initial and boundary T, S were inpainted from a few distant trench cells.
 
 Δz = fill(4.0, 8)
-while sum(Δz) + min(1.12 * Δz[end], 400.0) ≤ 5500
+grid_depth_limit = parse(Float64, get(ENV, "SO_OCEAN_GRID_DEPTH", "5500"))
+while sum(Δz) + min(1.12 * Δz[end], 400.0) ≤ grid_depth_limit
     push!(Δz, min(1.12 * Δz[end], 400.0))
 end
 ocean_z = vcat(-reverse(cumsum(Δz)), 0.0)

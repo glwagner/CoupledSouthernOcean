@@ -31,8 +31,9 @@ include("glorys_bathymetry.jl")
 # ## Vertical grid: 4 m in the top 32 m (storm mixing lives there), stretching by 12% per level
 # to a 400 m cap, to 5.47 km; deeper floors are flattened there. A level reaching 5.87 km
 # blew up within the first hour wherever it was wet (patches of the deep Southwest Pacific
-# Basin): its centre (5.67 km) lies below every GLORYS level except inside the trenches, so its
-# initial and boundary T, S were inpainted from a few distant trench cells.
+# Basin): GLORYS's 5728 m level has no wet point in this region, NumericalEarth's horizontal
+# inpainting then leaves it at zero, and the 5669 m centre interpolated to S = 4.6, T = 0.07
+# (tests/deep_initial_state.jl) — nearly fresh water at the bottom of the ocean.
 
 Δz = fill(4.0, 8)
 grid_depth_limit = parse(Float64, get(ENV, "SO_OCEAN_GRID_DEPTH", "5500"))

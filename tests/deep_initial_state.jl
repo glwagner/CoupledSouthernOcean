@@ -1,6 +1,9 @@
 # Initial GLORYS T and S on the model's deepest levels (wet cells only), to check the inpainting.
 using NumericalEarth, Oceananigans, CopernicusMarine, CUDA, Printf, JLD2
-using NumericalEarth.DataWrangling: BoundingBox
+using NumericalEarth.DataWrangling: BoundingBox, Metadata
+using Oceananigans.OutputReaders: Clamp
+using Oceananigans.Architectures: on_architecture
+using Oceananigans.Units
 using Statistics: mean
 import Dates
 using Dates: Day

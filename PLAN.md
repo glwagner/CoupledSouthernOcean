@@ -131,3 +131,24 @@ animate; (4) maybe higher resolution later.
   SO_ERA5_DIRs merged into data/era5 after each window: 3072 (Feb 6–12), 3073 (Feb 12–18),
   3074 (Feb 22–26); GLORYS Jan 29 → Feb 27 + Jan 29 snapshots: 3071. Download jobs use 2 CPUs
   (6 CPUs × 4 jobs blocked GPU jobs on the 24-CPU nodes).
+
+## Status 16:30 UTC — root cause of the boundary blow-up
+
+- Ocean-only 72 h runs (Δt 60 s and 5 s; NormalRadiation and TracerReservoir) all stay clean, so
+  neither the boundary scheme nor the small Δt is the cause.
+- In the coupled run the west-face normal velocity never changes from its t = 0 GLORYS value (every
+  j, 62 h), and the S halo is the Dirichlet reflection about the t = 0 value (c₀ + c₁ = 2 × 35.655).
+  Cause (NE, from #753's commit 02505c5b9 "Fill the exchanged state's halos centrally"): with the
+  exchange grid equal to the ocean grid (the default), the ocean exchanger *is* the ocean's u, v, S,
+  and `update_state!(::EarthSystemModel)` refills their halos every step with no clock or fields.
+  Open boundaries then fall back to their exterior value at t = 0 — a frozen boundary transport
+  against a wind-driven interior, a divergent edge cell, and S, T drifting without bound.
+  Fix (integration branch, to go into #753): `fill_state_halo_regions!(exchanger, component)`; the
+  Oceananigans-ocean method skips fields that belong to the ocean model. Regression test in
+  test_ocean_only_model.jl (time-dependent west S boundary value). GPU 3080 / CPU 3081; the same
+  test on the unfixed code: 3083.
+- CDS: the CDS-MARS queue is congested (7566 queued, 460 running). CopernicusClimateDataStore
+  waits 1 h, then the retry re-queues at the back: no request could ever finish. 57 abandoned
+  requests of ours were still queued (deleted). predownload.jl now waits SO_CDS_MAX_WAIT_HOURS
+  (20 h) per request; windows of 6 days (fewer requests): 3085 (Feb 6–12), 3086 (Feb 12–18),
+  3087 (Feb 22–26); GLORYS + Jan 29 snapshots 3084.

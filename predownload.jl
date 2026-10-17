@@ -16,6 +16,14 @@ using Oceananigans
 using Dates
 
 include("case.jl")
+
+# The CDS-MARS queue can hold a request for hours (7566 queued, 460 running on 2026-10-17), but
+# CopernicusClimateDataStore gives up after 1 h, and the request then starts again at the back of
+# the queue on retry. `hourly` does not pass `max_wait` through, so the plain three-argument
+# `retrieve` it calls waits SO_CDS_MAX_WAIT_HOURS instead.
+const cds_max_wait = parse(Float64, get(ENV, "SO_CDS_MAX_WAIT_HOURS", "20")) * 3600
+CopernicusClimateDataStore.retrieve(dataset::String, params::Dict, output_path::String) =
+    CopernicusClimateDataStore.retrieve(dataset, params, output_path; max_wait = cds_max_wait)
 const download = NumericalEarth.DataWrangling.Downloads.download
 
 pressure_levels = ERA5HourlyPressureLevels()

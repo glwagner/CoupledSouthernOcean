@@ -221,6 +221,8 @@ ocean_boundary_conditions = (u = u_bcs, v = v_bcs, T = tracer(T_glorys), S = tra
 
 # ## The ocean model, initialized from GLORYS at the start date
 
+# A driver may set `close_boundaries = true` (ocean_only.jl) to diagnose the open boundaries.
+@isdefined(close_boundaries) && close_boundaries && (ocean_boundary_conditions = NamedTuple())
 ocean = ocean_simulation(ocean_grid; boundary_conditions = ocean_boundary_conditions, warn = false)
 
 set!(ocean.model, MetadataSet(:temperature, :salinity, :u_velocity, :v_velocity;

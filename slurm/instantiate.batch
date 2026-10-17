@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=so-instantiate
+#SBATCH --partition=gpua100largex4
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=6
+#SBATCH --mem=100G
+#SBATCH --time=03:00:00
+#SBATCH --output=logs/%x-%j.log
+#SBATCH --open-mode=append
+source $HOME/southern-ocean/slurm/env.sh
+mkdir -p $HOME/.julia-so
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+echo "=== [$(date -Is)] instantiate ==="
+$JULIA --project=. -e '
+  using Pkg; Pkg.instantiate(); Pkg.precompile(); Pkg.status()
+  using CUDA; CUDA.versioninfo()
+  using NumericalEarth, Breeze, Oceananigans, RRTMGP, CloudMicrophysics, CopernicusMarine, CopernicusClimateDataStore'
+echo "=== [$(date -Is)] done (exit $?) ==="

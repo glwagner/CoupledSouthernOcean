@@ -1,0 +1,57 @@
+# Southern Ocean / New Zealand coupled hindcast — plan and status
+
+Greg's ask (2026-10-17): (1) a ~CONUS-sized regional 12 km Breeze atmosphere, ERA5-forced, over a
+GLORYS-SST PrescribedOcean, a few days; (2) replace PrescribedOcean with a prognostic 12 km regional
+ocean using the regional (GLORYS open-boundary) machinery from enri66/NumericalEarthSandbox, fixing
+bugs along the way; (3) run 14–28 days with a strong storm, NZ terrain via SurfacePartition (PR #664);
+animate; (4) maybe higher resolution later.
+
+## Decisions (made without asking, per Greg's workflow preference)
+
+- **Case: Feb 2018, New Zealand.** Ex-TC Fehi (landfall ~1 Feb) and ex-TC Gita (~20 Feb) during the
+  2017/18 Tasman Sea marine heatwave: strong storms, terrain, and a shallow summer mixed layer, so
+  storm mixing should show in SST. No sea ice in summer at these latitudes.
+- **Why 2018:** NumericalEarth's `GLORYSDaily` (`cmems_mod_glo_phy_my_0.083deg_P1D-m`) ends 2021-06-30;
+  later dates (e.g. Cyclone Gabrielle 2023) need the GLORYS interim product (`myint`), not wired up.
+- **Domain:** 150°E–190°E (170°W) × 57°S–27°S, Δ = 1/9° (≈12 km) → 360×270 columns, ≈ CONUS area.
+  Crosses the dateline: ERA5 (CDS area) and GLORYS (CopernicusMarine subset) handling of
+  longitudes > 180 still TO VERIFY (ext/NumericalEarthCopernicusClimateDataStoreExt.jl ~l.600–650,
+  ext/NumericalEarthCopernicusMarineExt.jl ~l.100–160).
+- **Windows:** stage 1 test 19–22 Feb 2018 (Gita); long coupled run 29 Jan → 26 Feb 2018 (28 d, both storms).
+
+## Software
+
+- Integration branch `glw/southern-ocean` in worktree `~/NumericalEarth-so` (local only, not pushed):
+  NE main (c38e1e1f9) + #753 `glw/bottom-precipitation-flux` + #664 `glw/surface-partition`
+  (3 conflicts resolved: ρe→ρE seam rename, `surface_radiation.surface_emissivity`, exports).
+- Env `~/southern-ocean/Project.toml`: Breeze main (0.12.1), Oceananigans 0.114.0, NE path source.
+  Isolated depot `~/.julia-so` (slurm/env.sh); never touches ~/.julia.
+- Instantiate job 2962 (gpua100largex4) → logs/so-instantiate-2962.log.
+
+## Known gaps to fix for stage 2 (prognostic ocean)
+
+1. `ext/NumericalEarthBreezeExt/breeze_air_land_radiation.jl`: `apply_breeze_air_sea_radiative_fluxes!`
+   has no method for a prognostic ocean (MethodError). Implement: Jᵀ += [εσTₛ⁴ + ε ℐˡʷꜜ +
+   (1−α) ℐˢʷꜜ, with penetrating SW via `shortwave_radiative_forcing`] / (ρ₀ cₚ), weighted (1−ℵ).
+   Breeze stores downwelling fluxes negative.
+2. EarthSystemModel steps every component with one Δt (atmosphere ~10–20 s). First try the ocean at
+   the atmospheric Δt; if too costly, add ocean subcycling with averaged fluxes.
+3. Ocean fraction þ must be 0 where the ocean grid is immersed (land), else the atmosphere sees
+   garbage ocean temperature in coastal cells.
+4. Ocean OBCs: port the triad from sandbox `scripts/02_mab_glorys_obc.jl` (PerturbationAdvection
+   normal u/v, NormalRadiation tangential + T/S, Flather `GravityWaveRadiationBoundaryCondition` for
+   U/V fed GLORYS depth-mean transport, `SurfaceWaveRadiationBoundaryCondition` on η). All available
+   on Oceananigans 0.114 main. Helper `glorys_bathymetry.jl` (boundary bathymetry matching).
+   Sandbox lessons: GLORYS source grid must bracket the model grid (inset model by n_pad cells);
+   clamp GLORYS time indexing at t=0; bounded WENO for T/S near the bottom.
+
+## Templates
+
+- Atmosphere nest + partition: `~/NumericalEarth-so/examples/breeze_downscaling_era5.jl` (from #664:
+  SlabLand + PrescribedOcean FTS + `regrid_ocean_fraction` + RRTMGP + `EarthSystemModel(; ...)`).
+- `~/AtmosphericRivers.jl/downscale.jl` (12 km nest, Float32, WENO5, relaxation 1/300 s, width 5).
+
+## Next steps
+
+1. Check 2962 succeeded. 2. Verify dateline handling (small ERA5 + GLORYS download test).
+3. Write `atmosphere.jl` (stage 1) + batch; 3-day run. 4. Stage 2 coupling fixes + `coupled.jl`.

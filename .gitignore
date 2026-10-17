@@ -1,0 +1,6 @@
+logs/
+data/
+runs/
+*.jld2
+*.mp4
+Manifest.toml.bak

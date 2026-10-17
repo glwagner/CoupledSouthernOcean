@@ -25,7 +25,7 @@ using CUDA
 using JLD2
 using Printf
 using Statistics: mean
-using Dates
+import Dates   # not `using`: Dates' hour/day/second clash with Oceananigans.Units
 using Dates: DateTime, Day, Hour, Second, Millisecond, value
 
 include("case.jl")
@@ -153,9 +153,9 @@ if ocean_kind == "prescribed"
     ocean_wet = Array(interior(bottom))[:, :, 1] .< 0
 end
 interior(ocean_fraction) .*= on_architecture(arch, Float32.(reshape(ocean_wet, Nx, Ny, 1)))
+þ_host = Array(interior(ocean_fraction))
 @info @sprintf("ocean fraction: mean %.3f, %d wet columns of %d, %d fractional",
-               mean(interior(ocean_fraction)), count(ocean_wet), Nx * Ny,
-               count(x -> 0 < x < 1, Array(interior(ocean_fraction))))
+               mean(þ_host), count(ocean_wet), Nx * Ny, count(x -> 0 < x < 1, þ_host))
 
 # ## Radiation
 
@@ -227,7 +227,7 @@ function progress(sim)
     qᵛ = specific_humidity(child)
     Tₛ = surface_temperature(sim.model.interfaces)
     msg = @sprintf("iter %6d  t = %s (%s)  Δt = %5.2f s  wall %6.1f s  max|u,v,w| = (%5.1f, %5.1f, %5.2f)  qᵛ ∈ [%.2e, %.2e]  Tₛ ∈ [%.1f, %.1f]",
-                   iteration(sim), prettytime(sim), start_date + Millisecond(round(Int, 1000 * time(sim))),
+                   iteration(sim), prettytime(sim), start_date + Millisecond(round(Int, 1000 * sim.model.clock.time)),
                    sim.Δt, elapsed, maximum(abs, u), maximum(abs, v), maximum(abs, w),
                    minimum(qᵛ), maximum(qᵛ), minimum(Tₛ), maximum(Tₛ))
     if ocean_kind == "prognostic"

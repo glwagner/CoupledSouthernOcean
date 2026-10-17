@@ -46,6 +46,11 @@ bottom = Array(interior(regrid_bathymetry(host_ocean_grid; dataset = ETOPO2022()
                                           minimum_depth = 10, major_basins = 1,
                                           interpolation_passes = 10)))[:, :, 1]
 match_boundary_bathymetry!(bottom, host_ocean_grid, glorys_dir; region = glorys_region, n_match = 4)
+
+# SO_OCEAN_MAX_DEPTH (m): flatten the floor at that depth (diagnosis of the deep levels).
+if haskey(ENV, "SO_OCEAN_MAX_DEPTH")
+    bottom .= max.(bottom, -parse(Float64, ENV["SO_OCEAN_MAX_DEPTH"]))
+end
 ocean_wet = bottom .< 0
 
 underlying_ocean_grid = LatitudeLongitudeGrid(arch; size = (Nx, Ny, Nzᵒ), longitude, latitude,

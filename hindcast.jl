@@ -25,6 +25,7 @@ using CUDA
 using JLD2
 using Printf
 using Statistics: mean
+using Dates
 using Dates: DateTime, Day, Hour, Second, Millisecond, value
 
 include("case.jl")
@@ -117,8 +118,11 @@ set!(land; M = 20)
 glorys_region = BoundingBox(longitude = (longitude[1] - 0.5, longitude[2] + 0.5),
                             latitude  = (latitude[1]  - 0.5, latitude[2]  + 0.5))
 
-# GLORYS daily means are stamped at 00 UTC but represent the whole day; place each at noon.
-glorys_dates = (start_date - Day(1)):Day(1):(stop_date + Day(1))
+# GLORYS daily means are stamped at 00 UTC but represent the whole day; NumericalEarth places
+# each at noon, measured from the first date. That first date must be the model's t = 0, so the
+# series starts on `start_date` (00 UTC) and is held at its first value (Clamp) until noon.
+Dates.hour(start_date) == 0 || error("SO_START must be at 00 UTC so GLORYS days align with t = 0")
+glorys_dates = start_date:Day(1):(stop_date + Day(1))
 glorys_times = [value(Millisecond(d + Hour(12) - start_date)) / 1000 for d in glorys_dates]
 
 if ocean_kind == "prescribed"

@@ -92,6 +92,33 @@ end
     check("ERA5 SST (K)", :sea_surface_temperature, ERA5HourlySingleLevel();
           field_type = g -> Field{Center, Center, Nothing}(g), finite_fraction = 0.8)
 
+    # The child terrain, the ocean fraction and the ocean bathymetry all regrid ETOPO2022.
+    @testset "ETOPO2022 bathymetry and ocean fraction" begin
+        regrid(grid) = Array(interior(regrid_bathymetry(grid; dataset = ETOPO2022(), minimum_depth = 0,
+                                                       major_basins = Inf, interpolation_passes = 1)))[:, :, 1]
+        Bc, Bw, Be = regrid(crossing), regrid(west), regrid(east)
+        for (side, B, i) in (("west", Bw, i_west), ("east", Be, i_east))
+            d = abs.(Bc[i, :] .- B)
+            @printf("ETOPO bottom height vs %s: median |Δ| = %.2f m, %.1f%% within 1 m\n",
+                    side, median(d), 100count(d .≤ 1) / length(d))
+            @test count(d .≤ 1) / length(d) ≥ 0.98
+        end
+        # Ground truth independent of any data path: the central North Island between Rotorua and
+        # Taupo (176.5°E, 38.5°S) is land; the Kermadec Trench region (179°W, 36.5°S) is deep ocean.
+        φc = collect(φnodes(crossing, Center()))
+        i_nz = findfirst(≥(176.5), λc); j_nz = findfirst(≥(-38.5), φc)
+        i_tr = findfirst(≥(181.0), λc); j_tr = findfirst(≥(-36.5), φc)
+        @printf("bottom height at (176.5°E, 38.5°S) = %.0f m, at (179°W, 36.5°S) = %.0f m\n", Bc[i_nz, j_nz], Bc[i_tr, j_tr])
+        @test Bc[i_nz, j_nz] ≥ 0
+        @test Bc[i_tr, j_tr] < -2000
+
+        surface = LatitudeLongitudeGrid(CPU(); size = (size(crossing, 1), Ny), longitude = (174, 186), latitude,
+                                        topology = (Bounded, Bounded, Flat))
+        þ = Array(interior(regrid_ocean_fraction(surface; dataset = ETOPO2022())))[:, :, 1]
+        @test 0 ≤ minimum(þ) && maximum(þ) ≤ 1
+        @test þ[i_nz, j_nz] < 0.5 && þ[i_tr, j_tr] > 0.99
+    end
+
     @testset "downloaded files cover the crossing box" begin
         files = filter(f -> endswith(f, ".nc"), readdir(datadir; join = true))
         covers(span, lo, hi) = span[1] ≤ lo && span[2] ≥ hi

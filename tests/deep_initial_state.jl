@@ -15,7 +15,7 @@ glorys_region = BoundingBox(longitude = (longitude[1] - 0.5, longitude[2] + 0.5)
 glorys_dates = start_date:Day(1):(stop_date + Day(1))
 include(joinpath(@__DIR__, "..", "ocean.jl"))
 T, S = Array(interior(ocean.model.tracers.T)), Array(interior(ocean.model.tracers.S))
-zc = znodes(ocean.model.grid, Center())
+zc = Array(znodes(ocean.model.grid, Center()))
 for k in 1:8
     wet = [bottom[i, j] < zc[k] for i in 1:Nx, j in 1:Ny]
     n = count(wet)

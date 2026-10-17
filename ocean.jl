@@ -247,10 +247,10 @@ function add_ocean_output!(simulation, ocean, rundir, interval)
 
     simulation.output_writers[:ocean_surface] = JLD2Writer(model, surface; schedule = TimeInterval(interval),
                                                            filename = joinpath(rundir, "ocean_surface.jld2"),
-                                                           overwrite_existing = true)
+                                                           overwrite_files = true)
 
     simulation.output_writers[:ocean_daily] = JLD2Writer(model, (; u, v, T, S); schedule = TimeInterval(1day),
                                                          filename = joinpath(rundir, "ocean_daily.jld2"),
-                                                         overwrite_existing = true)
+                                                         overwrite_files = true)
     return nothing
 end

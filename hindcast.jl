@@ -208,7 +208,7 @@ output_interval = parse(Float64, get(ENV, "SO_OUTPUT_MINUTES", "60")) * minutes
 simulation.output_writers[:surface] = JLD2Writer(model, surface_fields;
                                                  schedule = TimeInterval(output_interval),
                                                  filename = joinpath(rundir, "surface.jld2"),
-                                                 overwrite_existing = true)
+                                                 overwrite_files = true)
 
 ocean_kind == "prognostic" && add_ocean_output!(simulation, ocean, rundir, output_interval)
 
@@ -236,6 +236,7 @@ function progress(sim)
                         minimum(oc.tracers.T), maximum(oc.tracers.T))
     end
     @info msg
+    flush(stderr)   # a log file on the shared filesystem is otherwise written only when Julia yields
     return nothing
 end
 

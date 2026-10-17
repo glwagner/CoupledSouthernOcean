@@ -77,6 +77,20 @@ animate; (4) maybe higher resolution later.
   never run two ERA5 jobs over the same month at once. B (2977) runs now; A requeued after B (2980).
   ERA5 cache is one file per hour, so pieces combine.
 
+## Status 10:20 UTC
+
+- Stage 1 (2981) stepping, Δt ≈ 4–5 s (vertical CFL from grid-scale convection), ~1.3 s wall per
+  simulated minute → 72 h in ~2.4 h. Animation pipeline verified on a partial copy (Gita split low
+  over NZ, Southern Alps wind jet, cold-air-outbreak heat loss over the Tasman).
+- Stage 2 fixes: (1) Float64 clock for the nest via `clock = Clock(grid)` (NE's Breeze default is
+  Float32 — mismatched the ocean and would lose 0.25 s per step at 4 weeks); (2) NE: ocean flux
+  assembly read `runoff_freshwater_flux` from SlabLand's exchanger (FieldError) → ZeroField for lands
+  without runoff; (3) NE: `_assemble_net_ocean_fluxes!` segfaulted the external NVPTX back-end
+  (NVPTX_LLVM_Backend_jll 23.1.1+3 and 23.1.2+1, `tryLDG`) — bisected (tests/gpu_flux_kernel_bisect.jl)
+  to the eight `ifelse`-guarded stores; rewritten as one branch. NE 3f7cab57e (integration) /
+  c2abec997 (PR #664 branch, tests pending).
+- Coupled smoke 3023: 90 iterations OK, 0.14 s/iteration (atmosphere alone 0.094). 72 h coupled: 3025.
+
 ## Next steps
 
 1. Check 2962 succeeded. 2. Verify dateline handling (small ERA5 + GLORYS download test).

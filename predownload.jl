@@ -32,7 +32,9 @@ end
 
 glorys_region = BoundingBox(longitude = (longitude[1] - 0.5, longitude[2] + 0.5),
                             latitude  = (latitude[1]  - 0.5, latitude[2]  + 0.5))
-glorys_dates = start_date:Day(1):(stop_date + Day(1))
+# ocean.jl reads one day past the stop date; SO_GLORYS_EXTRA_DAYS=0 stops at the stop date, so a
+# window can be fetched in pieces without two jobs writing the same daily file.
+glorys_dates = start_date:Day(1):(stop_date + Day(parse(Int, get(ENV, "SO_GLORYS_EXTRA_DAYS", "1"))))
 
 @info "GLORYS daily u, v, T, S, zos for $(length(glorys_dates)) days over $(glorys_region)"
 download(MetadataSet(:u_velocity, :v_velocity, :temperature, :salinity, :free_surface;

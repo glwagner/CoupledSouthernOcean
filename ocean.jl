@@ -20,6 +20,7 @@
 
 using NumericalEarth.NestedModels: Interpolated
 using NumericalEarth.DataWrangling: MetadataSet, z_interfaces
+using NumericalEarth.Diagnostics: MixedLayerDepthField
 using Oceananigans.BoundaryConditions: PerturbationAdvection, NormalRadiation,
                                        GravityWaveRadiationBoundaryCondition,
                                        SurfaceWaveRadiationBoundaryCondition

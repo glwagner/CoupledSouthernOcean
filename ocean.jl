@@ -29,11 +29,13 @@ using Oceananigans.Grids: znodes
 include("glorys_bathymetry.jl")
 
 # ## Vertical grid: 4 m in the top 32 m (storm mixing lives there), stretching by 12% per level
-# to a 400 m cap, to 5.87 km: GLORYS's levels reach only 5.95 km, and the initial and boundary
-# GLORYS fields must span the grid (deeper trenches are truncated).
+# to a 400 m cap, to 5.47 km; deeper floors are flattened there. A level reaching 5.87 km
+# blew up within the first hour wherever it was wet (patches of the deep Southwest Pacific
+# Basin): its centre (5.67 km) lies below every GLORYS level except inside the trenches, so its
+# initial and boundary T, S were inpainted from a few distant trench cells.
 
 Δz = fill(4.0, 8)
-while sum(Δz) + min(1.12 * Δz[end], 400.0) ≤ 5900
+while sum(Δz) + min(1.12 * Δz[end], 400.0) ≤ 5500
     push!(Δz, min(1.12 * Δz[end], 400.0))
 end
 ocean_z = vcat(-reverse(cumsum(Δz)), 0.0)

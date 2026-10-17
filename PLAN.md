@@ -152,3 +152,15 @@ animate; (4) maybe higher resolution later.
   requests of ours were still queued (deleted). predownload.jl now waits SO_CDS_MAX_WAIT_HOURS
   (20 h) per request; windows of 6 days (fewer requests): 3085 (Feb 6–12), 3086 (Feb 12–18),
   3087 (Feb 22–26); GLORYS + Jan 29 snapshots 3084.
+
+## Status 19:10 UTC — coupled 72 h works
+
+- 3091 (runs/coupled_gita_72h_fix, NE fc750222d + TracerReservoir T/S): 72 h clean, 2.65 h wall.
+  Ocean T ∈ [−0.37, 28.5] throughout; edge cells T ∈ [1.8, 27.6], S ∈ [33.7, 36.0]; the west-face
+  normal velocity now evolves (0.25 m/s in the first hour, as in the ocean-only runs).
+- 3 days of Gita: mean ΔSST −0.36 °C over the ocean (1–99 %: −2.2 … +1.1); ΔSSS ±0.8. Largest
+  cooling 5.2 °C off Cape Farewell (172.6°E, 40.5°S) under a NW gale (τ ≈ 0.5 N/m², latent
+  200–270 W/m²) with S rising 34.7 → 35.2: upwelling/advection (Kahurangi upwelling), MLD ~10 m.
+  Surface currents up to 1.7–2.8 m/s in the 4 m top cell near Cook Strait / Taranaki — high,
+  to keep an eye on. Median MLD 21 m. Animation: 3098.
+- NE fix also on local branch glw/exchanger-halo-fix-753 (off #753, CPU tests pass); not pushed.

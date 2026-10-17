@@ -252,5 +252,17 @@ function add_ocean_output!(simulation, ocean, rundir, interval)
     simulation.output_writers[:ocean_daily] = JLD2Writer(model, (; u, v, T, S); schedule = TimeInterval(1day),
                                                          filename = joinpath(rundir, "ocean_daily.jld2"),
                                                          overwrite_files = true)
+
+    # SO_OCEAN_DEBUG_MINUTES: the barotropic state and the bottom level at that cadence
+    if haskey(ENV, "SO_OCEAN_DEBUG_MINUTES")
+        U, V = model.free_surface.barotropic_velocities
+        debug = (η = model.free_surface.displacement, U, V,
+                 u_bottom = Field(u; indices = (:, :, 1)), v_bottom = Field(v; indices = (:, :, 1)),
+                 T_bottom = Field(T; indices = (:, :, 1)), w_bottom = Field(w; indices = (:, :, 2)))
+        simulation.output_writers[:ocean_debug] =
+            JLD2Writer(model, debug; schedule = TimeInterval(parse(Float64, ENV["SO_OCEAN_DEBUG_MINUTES"]) * minutes),
+                       filename = joinpath(rundir, "ocean_debug.jld2"), overwrite_files = true)
+    end
+
     return nothing
 end

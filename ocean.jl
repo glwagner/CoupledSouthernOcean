@@ -29,10 +29,11 @@ using Oceananigans.Grids: znodes
 include("glorys_bathymetry.jl")
 
 # ## Vertical grid: 4 m in the top 32 m (storm mixing lives there), stretching by 12% per level
-# to a 400 m cap, to 6.27 km (deeper trenches are truncated).
+# to a 400 m cap, to 5.87 km: GLORYS's levels reach only 5.95 km, and the initial and boundary
+# GLORYS fields must span the grid (deeper trenches are truncated).
 
 Δz = fill(4.0, 8)
-while sum(Δz) < 6000
+while sum(Δz) + min(1.12 * Δz[end], 400.0) ≤ 5900
     push!(Δz, min(1.12 * Δz[end], 400.0))
 end
 ocean_z = vcat(-reverse(cumsum(Δz)), 0.0)

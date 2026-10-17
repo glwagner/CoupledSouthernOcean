@@ -4,3 +4,4 @@ runs/
 *.jld2
 *.mp4
 Manifest.toml.bak
+tests/env-*/

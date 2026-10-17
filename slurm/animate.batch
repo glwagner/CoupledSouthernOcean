@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH --job-name=so-animate
+#SBATCH --partition=gpua100largex4
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=6
+#SBATCH --mem=60G
+#SBATCH --time=02:00:00
+#SBATCH --output=logs/%x-%j.log
+#SBATCH --open-mode=append
+# sbatch tests/animate.batch runs/<name> [stride]
+source $HOME/southern-ocean/slurm/env.sh
+$JULIA --project=analysis -e 'using Pkg; Pkg.instantiate()'
+stdbuf -oL -eL $JULIA --project=analysis analysis/animate.jl "$@"
+status=$?
+echo "=== [$(date -Is)] done (exit $status) ==="
+exit $status

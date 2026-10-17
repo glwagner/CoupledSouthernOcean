@@ -21,14 +21,19 @@ start_date = static["start_date"]
 Nx, Ny = length(λ), length(φ)
 ocean_mask = ifelse.(þ .> 0.5, 1.0, NaN)
 
+# Interior points of a saved dimension of length n: the writer keeps halos, so a centre-located
+# dimension has N + 2H points and a face-located one N + 1 + 2H (the parity tells them apart).
+function interior_range(n, N)
+    H = (n - N) ÷ 2
+    return H+1:n-H
+end
+
 # Interior of a saved 2-D slice, averaged to cell centres (face-located fields carry N + 1 points).
 function centered(file, name, iteration)
     A = dropdims(file["timeseries/$name/$iteration"]; dims = 3)
-    H = haskey(file, "grid/Hx") ? (file["grid/Hx"], file["grid/Hy"]) : (0, 0)
-    sx = size(A, 1) - 2H[1]; sy = size(A, 2) - 2H[2]
-    A = A[H[1]+1:H[1]+sx, H[2]+1:H[2]+sy]
-    sx == Nx + 1 && (A = (A[1:end-1, :] .+ A[2:end, :]) ./ 2)
-    sy == Ny + 1 && (A = (A[:, 1:end-1] .+ A[:, 2:end]) ./ 2)
+    A = A[interior_range(size(A, 1), Nx), interior_range(size(A, 2), Ny)]
+    size(A, 1) == Nx + 1 && (A = (A[1:end-1, :] .+ A[2:end, :]) ./ 2)
+    size(A, 2) == Ny + 1 && (A = (A[:, 1:end-1] .+ A[:, 2:end]) ./ 2)
     size(A) == (Nx, Ny) || error("$name has interior size $(size(A)), expected ($Nx, $Ny)")
     return Float64.(A)
 end

@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --job-name=so-pin-nvptx
+#SBATCH --partition=gpua100largex4
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=6
+#SBATCH --mem=100G
+#SBATCH --time=02:00:00
+#SBATCH --output=logs/%x-%j.log
+#SBATCH --open-mode=append
+# Pin NVPTX_LLVM_Backend_jll in a scratch copy of the environment and rerun the "full" bisect probe.
+source $HOME/southern-ocean/slurm/env.sh
+E=$HOME/southern-ocean/tests/env-nvptx23.1.1
+$JULIA --project=$E -e 'using Pkg; Pkg.add(name = "NVPTX_LLVM_Backend_jll", version = "23.1.1"); Pkg.status("NVPTX_LLVM_Backend_jll"; mode = PKGMODE_MANIFEST)' || exit 1
+stdbuf -oL -eL $JULIA --project=$E tests/gpu_flux_kernel_bisect.jl full
+status=$?
+echo "=== [$(date -Is)] done (exit $status) ==="
+exit $status

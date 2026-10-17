@@ -96,6 +96,9 @@ nest = nested_atmosphere_model(grid, dataset;
                                microphysics,
                                momentum_advection = WENO(order = 5),
                                scalar_advection,
+                               # Float64 time on the Float32 grid (NE's default clock is Float32,
+                               # 0.25 s resolution at 4 weeks); also matches the ocean's clock
+                               clock = Clock(grid),
                                closure_kw...)
 
 child = nest.child

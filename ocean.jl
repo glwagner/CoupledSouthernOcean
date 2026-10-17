@@ -156,7 +156,10 @@ end
 # Remove the initial domain-mean GLORYS sea level from the exterior, as from the initial η below,
 # so Flather does not drive a uniform setup toward GLORYS's arbitrary datum.
 flather_tables = Dict(side => flather_exterior_tables(side) for side in (:west, :east, :south, :north))
-η_reference = Float32(mean(filter(isfinite, Array(interior(η_native[1])))))
+# GLORYS zos comes back as exactly 0 over land, so the datum averages GLORYS ocean cells only.
+η_reference = let η₀ = Array(interior(η_native[1]))[:, :, 1]
+    Float32(mean(η₀[isfinite.(glorys_floor) .& isfinite.(η₀)]))
+end
 for side in keys(flather_tables)
     flather_tables[side][2] .-= η_reference
 end

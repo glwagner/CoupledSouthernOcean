@@ -235,7 +235,11 @@ function progress(sim)
                    minimum(qᵛ), maximum(qᵛ), minimum(Tₛ), maximum(Tₛ))
     if ocean_kind == "prognostic"
         oc = sim.model.ocean.model
-        msg *= @sprintf("  ocean max|u| = %.2f  T ∈ [%.2f, %.2f]", maximum(abs, oc.velocities.u),
+        # Where the fastest current is (i, j, k), to catch boundary or shallow-water trouble early
+        umax, I = findmax(abs.(interior(oc.velocities.u)))
+        U = oc.free_surface.barotropic_velocities.U
+        msg *= @sprintf("  ocean max|u| = %.2f at %s  max|U| = %.1f  max|η| = %.2f  T ∈ [%.2f, %.2f]",
+                        umax, Tuple(I), maximum(abs, U), maximum(abs, oc.free_surface.displacement),
                         minimum(oc.tracers.T), maximum(oc.tracers.T))
     end
     @info msg

@@ -14,5 +14,15 @@ echo "=== [$(date -Is)] instantiate ==="
 $JULIA --project=. -e '
   using Pkg; Pkg.instantiate(); Pkg.precompile(); Pkg.status()
   using CUDA; CUDA.versioninfo()
-  using NumericalEarth, Breeze, Oceananigans, RRTMGP, CloudMicrophysics, CopernicusMarine, CopernicusClimateDataStore'
-echo "=== [$(date -Is)] done (exit $?) ==="
+  using NumericalEarth, Breeze, Oceananigans, RRTMGP, CloudMicrophysics, CopernicusMarine, CopernicusClimateDataStore
+  # A failed extension only logs an error on `using`; make it fail the job.
+  required = (:NumericalEarthBreezeExt, :NumericalEarthCopernicusMarineExt, :NumericalEarthCopernicusClimateDataStoreExt)
+  missing_extensions = filter(ext -> isnothing(Base.get_extension(NumericalEarth, ext)), required)
+  isempty(missing_extensions) || error("extensions failed to load: $(missing_extensions)")
+  for ext in (:BreezeRRTMGPExt, :BreezeCloudMicrophysicsExt)
+      isnothing(Base.get_extension(Breeze, ext)) && error("$ext failed to load")
+  end
+  println("all required packages and extensions loaded")'
+status=$?
+echo "=== [$(date -Is)] done (exit $status) ==="
+exit $status

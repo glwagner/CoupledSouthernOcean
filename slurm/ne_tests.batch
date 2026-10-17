@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --job-name=so-netests
+#SBATCH --partition=gpua100largex4
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=6
+#SBATCH --mem=100G
+#SBATCH --time=06:00:00
+#SBATCH --output=logs/%x-%j.log
+#SBATCH --open-mode=append
+# Run selected NumericalEarth tests from a worktree:  sbatch slurm/ne_tests.batch <worktree> <test names...>
+source $HOME/southern-ocean/slurm/env.sh
+WT=$1; shift
+cd $WT
+export GPU_TEST=${GPU_TEST:-true}
+echo "=== [$(date -Is)] $WT @ $(git rev-parse --short HEAD): $@ ==="
+$JULIA --project=test -e 'using Pkg; Pkg.instantiate()'
+stdbuf -oL -eL $JULIA --project=test test/runtests.jl "$@"
+status=$?
+echo "=== [$(date -Is)] done (exit $status) ==="
+exit $status

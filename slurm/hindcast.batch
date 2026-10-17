@@ -1,0 +1,18 @@
+#!/bin/bash
+#SBATCH --job-name=so-hindcast
+#SBATCH --partition=gpua100largex4
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=6
+#SBATCH --mem=120G
+#SBATCH --time=48:00:00
+#SBATCH --output=logs/%x-%j.log
+#SBATCH --open-mode=append
+# sbatch --job-name=so-<tag> --export=ALL,SO_NAME=<tag>,SO_OCEAN=prescribed,SO_HOURS=72 slurm/hindcast.batch
+source $HOME/southern-ocean/slurm/env.sh
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+env | grep '^SO_' | sort
+echo "=== [$(date -Is)] start on $(hostname), commit $(git rev-parse --short HEAD) ==="
+stdbuf -oL -eL $JULIA --project=. -t 6 hindcast.jl
+status=$?
+echo "=== [$(date -Is)] done (exit $status) ==="
+exit $status

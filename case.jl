@@ -24,6 +24,6 @@ Nx = round(Int, (longitude[2] - longitude[1]) * cells_per_degree)
 Ny = round(Int, (latitude[2]  - latitude[1])  * cells_per_degree)
 
 datadir = get(ENV, "SO_DATA", joinpath(@__DIR__, "data"))
-era5_dir   = joinpath(datadir, "era5")
+era5_dir   = get(ENV, "SO_ERA5_DIR", joinpath(datadir, "era5"))   # a private directory lets ERA5 jobs run concurrently
 glorys_dir = joinpath(datadir, "glorys")
 mkpath(era5_dir); mkpath(glorys_dir)

@@ -110,3 +110,24 @@ animate; (4) maybe higher resolution later.
 
 1. Check 2962 succeeded. 2. Verify dateline handling (small ERA5 + GLORYS download test).
 3. Write `atmosphere.jl` (stage 1) + batch; 3-day run. 4. Stage 2 coupling fixes + `coupled.jl`.
+
+## Status 14:55 UTC
+
+- Coupled 72 h (3039) crashed at 2.6 d (DomainError, sqrt of a negative) after surface T went to
+  −16 °C, S to 9 psu in single cells on the open boundaries: west edge (150.06°E, 40.5°S, i = 1,
+  j ≈ 148–154) from hour 42, east edge (i = 360, j ≈ 62) from hour ~34. Surface fluxes there were
+  small, so the cause is the T/S open boundary (NormalRadiation, from the sandbox's script 02), not
+  the coupling. The sandbox has since moved to `TracerReservoir` (Oceananigans #5964) for T/S.
+  ocean.jl now takes SO_OCEAN_TRACER_OBC=reservoir (default) | radiation; ocean-only 72 h runs of
+  both (3069 radiation, 3070 reservoir) to confirm. analysis/point_series.jl: time series at the
+  coldest surface point (or any i, j).
+- NE inpainting fix: the new kernel read `size(field, 3)` on the device — fails for 2-D fields
+  (Field adapted with grid = nothing). Nz now passed from the host; test extended with a 2-D
+  field. CPU 3068 / GPU 3067.
+- ERA5: each 48 h window re-requested three single-level snapshots (surface geopotential, MSLP,
+  skin T), each queueing ~1 h at the CDS. predownload.jl now downloads the pressure-level bundle
+  directly and the snapshots only for the run start. NE clears every `_tmp_era5cli_<yyyymm>*` in its
+  directory before a request (that was the earlier "collision"), so concurrent jobs use private
+  SO_ERA5_DIRs merged into data/era5 after each window: 3072 (Feb 6–12), 3073 (Feb 12–18),
+  3074 (Feb 22–26); GLORYS Jan 29 → Feb 27 + Jan 29 snapshots: 3071. Download jobs use 2 CPUs
+  (6 CPUs × 4 jobs blocked GPU jobs on the 24-CPU nodes).

@@ -8,8 +8,10 @@
 #SBATCH --output=logs/%x-%j.log
 #SBATCH --open-mode=append
 # Fetch a long window's ERA5 + GLORYS in 48 h pieces, one after another: whole-month CDS
-# requests time out (CopernicusClimateDataStore's 1 h limit), and concurrent jobs collide on
-# era5cli's per-month temporary file. Hours already on disk are skipped.
+# requests time out (CopernicusClimateDataStore's 1 h limit). Hours already on disk are skipped.
+# Concurrent jobs over the same month need separate SO_ERA5_DIRs: NumericalEarth clears every
+# `_tmp_era5cli_<yyyymm>*` in its directory before a request. A private directory is merged into
+# data/era5 after each window. SO_ERA5=false / SO_GLORYS=false / SO_SNAPSHOTS=false skip parts.
 #   sbatch slurm/predownload_windows.batch 2018-01-29 2018-02-26
 source $HOME/southern-ocean/slurm/env.sh
 first=$1; last=$2
@@ -17,13 +19,16 @@ d=$first
 while [[ "$d" < "$last" ]]; do
     next=$(date -u -d "$d + 2 days" +%F)
     [[ "$next" < "$last" ]] && extra=0 || extra=1
-    echo "=== [$(date -Is)] window $d (+48 h), GLORYS extra days $extra ==="
+    [[ "$d" == "$first" ]] && snapshots=${SO_SNAPSHOTS:-true} || snapshots=false   # single-level snapshots: run start only
+    echo "=== [$(date -Is)] window $d (+48 h), GLORYS extra days $extra, snapshots $snapshots ==="
     for attempt in 1 2 3; do
-        SO_START=${d}T00:00:00 SO_HOURS=48 SO_GLORYS_EXTRA_DAYS=$extra \
+        SO_START=${d}T00:00:00 SO_HOURS=48 SO_GLORYS_EXTRA_DAYS=$extra SO_SNAPSHOTS=$snapshots \
             stdbuf -oL -eL $JULIA --project=. -t 6 predownload.jl 2>&1 | grep -vE "%\||CDS: (accepted|processing)"
         [[ ${PIPESTATUS[0]} -eq 0 ]] && break
         echo "--- attempt $attempt failed for $d"
     done
+    # A private SO_ERA5_DIR: move the finished hourly files into the shared cache.
+    [[ -n "$SO_ERA5_DIR" ]] && find "$SO_ERA5_DIR" -maxdepth 1 -name "*.nc" ! -name "_tmp*" -exec mv -n {} data/era5/ \;
     d=$next
 done
 echo "=== [$(date -Is)] done (exit 0) ==="

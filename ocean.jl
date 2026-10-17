@@ -21,7 +21,7 @@
 using NumericalEarth.NestedModels: Interpolated
 using NumericalEarth.DataWrangling: MetadataSet, z_interfaces
 using NumericalEarth.Diagnostics: MixedLayerDepthField
-using Oceananigans.BoundaryConditions: PerturbationAdvection, NormalRadiation,
+using Oceananigans.BoundaryConditions: PerturbationAdvection, NormalRadiation, TracerReservoir,
                                        GravityWaveRadiationBoundaryCondition,
                                        SurfaceWaveRadiationBoundaryCondition
 using Oceananigans.Grids: znodes
@@ -201,11 +201,20 @@ flather(side) = GravityWaveRadiationBoundaryCondition(flather_exterior; discrete
 normal_scheme  = PerturbationAdvection(inflow_timescale = τ_in, outflow_timescale = Inf)
 radiated       = NormalRadiation(inflow_timescale = τ_in, outflow_timescale = Inf)
 
+# T/S (SO_OCEAN_TRACER_OBC): "reservoir" (default; the sandbox's current scheme, MOM6-style:
+# relax toward GLORYS over 20 km of inflow, zero-gradient on outflow) or "radiation" (NormalRadiation,
+# as the sandbox's script 02). With radiation, single boundary cells drifted toward T, S ≈ 0 (−16 °C,
+# 9 psu) in the 72 h coupled run, on outflow faces of the west and east boundaries.
+tracer_obc = get(ENV, "SO_OCEAN_TRACER_OBC", "reservoir")
+tracer_scheme = tracer_obc == "reservoir" ? TracerReservoir(inflow_length_scale = 20kilometers) :
+                tracer_obc == "radiation" ? radiated :
+                error("SO_OCEAN_TRACER_OBC must be reservoir or radiation, got $tracer_obc")
+
 tangential(fts) = ValueBoundaryCondition(Interpolated(fts); scheme = radiated)
-tracer(fts) = FieldBoundaryConditions(west  = ValueBoundaryCondition(Interpolated(fts); scheme = radiated),
-                                      east  = ValueBoundaryCondition(Interpolated(fts); scheme = radiated),
-                                      south = ValueBoundaryCondition(Interpolated(fts); scheme = radiated),
-                                      north = ValueBoundaryCondition(Interpolated(fts); scheme = radiated))
+tracer(fts) = FieldBoundaryConditions(west  = ValueBoundaryCondition(Interpolated(fts); scheme = tracer_scheme),
+                                      east  = ValueBoundaryCondition(Interpolated(fts); scheme = tracer_scheme),
+                                      south = ValueBoundaryCondition(Interpolated(fts); scheme = tracer_scheme),
+                                      north = ValueBoundaryCondition(Interpolated(fts); scheme = tracer_scheme))
 
 u_bcs = FieldBoundaryConditions(west  = NormalFlowBoundaryCondition(Interpolated(u_glorys); scheme = normal_scheme),
                                 east  = NormalFlowBoundaryCondition(Interpolated(u_glorys); scheme = normal_scheme),

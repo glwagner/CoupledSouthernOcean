@@ -91,6 +91,21 @@ animate; (4) maybe higher resolution later.
   c2abec997 (PR #664 branch, tests pending).
 - Coupled smoke 3023: 90 iterations OK, 0.14 s/iteration (atmosphere alone 0.094). 72 h coupled: 3025.
 
+## Status 12:20 UTC
+
+- Stage 1 done (2981): runs/atm_gita_72h, animation.mp4 (73 frames). Stable, Δt 3.7–5 s.
+- Coupled run blew up within 1 h at the deepest ocean level. Diagnosis (ocean_only.jl,
+  SO_OCEAN_DEBUG_MINUTES, tests/deep_initial_state.jl): wet cells at the 5669 m level started with
+  S = 4.6, T = 0.07 — GLORYS T/S below ~5.5 km came back as zeros here, not continued downward.
+  Independent of precision (Float32/64) and of the open boundaries (closed also blew up).
+  Fix: ocean grid to 5.47 km (53 levels). **NE bug to report/fix**: the `inpaint_mask!` path
+  continues values downward, so the zeros come from somewhere else (a missing deepest level in
+  the subset? `_fill_nans!` after an all-NaN level?) — reproducer tests/deep_initial_state.jl
+  with SO_OCEAN_GRID_DEPTH=5900.
+- Coupled 72 h (3039) stable so far; 0.14 s/iteration. 28 d estimate ≈ 22–26 h on one A100.
+- ERA5 predownload: whole-month CDS requests time out after 1 h; windowed job 3041 (48 h pieces,
+  serial) running for Jan 29 → Feb 26. Missing so far: Feb 6–17, Feb 23–26.
+
 ## Next steps
 
 1. Check 2962 succeeded. 2. Verify dateline handling (small ERA5 + GLORYS download test).

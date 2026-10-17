@@ -65,6 +65,18 @@ animate; (4) maybe higher resolution later.
   Piece B (Feb 18–Feb 27, GLORYS +1 day) to submit after 2972 finishes its downloads.
 - ERA5: one CDS request per variable per window (≤6 threads), ~5–10 min per round.
 
+## Status 08:30 UTC
+
+- 2972 (stage 1) died at setup: `using Dates` made `hour` ambiguous with Oceananigans.Units (now
+  `import Dates`); GPU scalar `mean` in a log line. 2976 then failed at `JLD2Writer`: the keyword is
+  `overwrite_files` on Oceananigans 0.114. Rerun: 2981. Setup takes ~25 min (albedo, nest, RRTMGP).
+- Julia output to the NFS log appears only when Julia yields or exits; progress lines now `flush(stderr)`.
+- Coupled smoke (prognostic ocean, 90 iterations): 2978 failed because the ocean grid (6.27 km) was
+  deeper than GLORYS's levels (5.95 km); grid now 54 levels to 5.87 km. Rerun: 2982.
+- Predownload A (2975) collided with 2972 on era5cli's shared temp file `_tmp_era5cli_201802_<var>…`:
+  never run two ERA5 jobs over the same month at once. B (2977) runs now; A requeued after B (2980).
+  ERA5 cache is one file per hour, so pieces combine.
+
 ## Next steps
 
 1. Check 2962 succeeded. 2. Verify dateline handling (small ERA5 + GLORYS download test).

@@ -51,6 +51,20 @@ animate; (4) maybe higher resolution later.
   SlabLand + PrescribedOcean FTS + `regrid_ocean_fraction` + RRTMGP + `EarthSystemModel(; ...)`).
 - `~/AtmosphericRivers.jl/downscale.jl` (12 km nest, Float32, WENO5, relaxation 1/300 s, width 5).
 
+## Status 2026-10-17 05:40 UTC
+
+- PR #664 merged with main, load failure fixed (atmosphere_feels_surface trait), #753's PrescribedOcean
+  BGC one-liner cherry-picked; pushed as 4d049a2, description updated. Tests 139 pass / 2 pre-existing
+  broken on CPU (2974) and GPU (2973).
+- Integration branch also carries the Breeze-RTM → prognostic-ocean radiation kernel + test:
+  140 / 2 on CPU (2969) and GPU (2968).
+- Dateline test (tests/test_dateline.jl) 44/44 (job 2971): GLORYS, ERA5 and ETOPO on 174–186°E match
+  independent non-crossing loads; files cover the box. GLORYS zos is exactly 0 on land (η datum
+  now averages GLORYS ocean cells only).
+- Stage 1 72 h run: job 2972 (runs/atm_gita_72h). Predownload piece A (Jan 29–Feb 17): job 2975.
+  Piece B (Feb 18–Feb 27, GLORYS +1 day) to submit after 2972 finishes its downloads.
+- ERA5: one CDS request per variable per window (≤6 threads), ~5–10 min per round.
+
 ## Next steps
 
 1. Check 2962 succeeded. 2. Verify dateline handling (small ERA5 + GLORYS download test).

@@ -6,6 +6,7 @@
 #
 # SO_ERA5=false skips the ERA5 pressure levels, SO_GLORYS=false skips GLORYS, SO_SNAPSHOTS=false skips
 # the single-level snapshots; SO_ERA5_DIR (case.jl) puts the ERA5 files in a private directory.
+# SO_ARCO_PLAN=<file> lists the missing ERA5 files for tools/arco/arco.jl instead of asking the CDS.
 
 using NumericalEarth
 using NumericalEarth.DataWrangling: Metadata, Metadatum, MetadataSet, BoundingBox, default_horizontal_padding
@@ -37,20 +38,49 @@ parent_region = BoundingBox(grid; padding = default_horizontal_padding(pressure_
 # request that can queue for an hour. Only the run's start date needs the single-level snapshots
 # (surface geopotential, MSLP, skin temperature), so a window fetches them only when
 # SO_SNAPSHOTS=true (the default; predownload_windows.batch sets it for the first window only).
+hydrometeor_names = [NumericalEarth.DataWrangling.ERA5.ERA5_hydrometeor_names[q] for q in parent_hydrometeors]
+pressure_level_names = (:temperature, :eastward_velocity, :northward_velocity, :specific_humidity,
+                        hydrometeor_names..., :geopotential)
+era5_dates = NumericalEarth.DataWrangling.expand_dates(pressure_levels, :temperature, (start_date, stop_date))
+snapshots = ((:geopotential, parent_region), (:mean_sea_level_pressure, BoundingBox(grid)),
+             (:skin_temperature, parent_region))
+
+# SO_ARCO_PLAN=<file>: instead of asking the CDS, append every missing ERA5 file to <file> for
+# tools/arco/arco.jl, which cuts it from Google's ARCO-ERA5 copy (no queue). One row per file:
+# ARCO variable, NetCDF variable, level kind, date, padded west/east/south/north, path.
+arco_plan = get(ENV, "SO_ARCO_PLAN", nothing)
+cds_extension = Base.get_extension(NumericalEarth, :NumericalEarthCopernicusClimateDataStoreExt)
+arco_names = Dict(:geopotential => "geopotential_at_surface")   # single-level names that differ
+
+function plan_or_download(metadata::Metadata, kind)
+    isnothing(arco_plan) && return download(metadata)
+    dataset_names = kind == "pl" ? NumericalEarth.DataWrangling.ERA5.ERA5PL_dataset_variable_names :
+                                   NumericalEarth.DataWrangling.ERA5.ERA5_dataset_variable_names
+    nc_names = NumericalEarth.DataWrangling.ERA5.nc_varnames(metadata.dataset)
+    open(arco_plan, "a") do io
+        for metadatum in metadata
+            path = NumericalEarth.DataWrangling.metadata_path(metadatum)
+            isfile(path) && continue
+            area = cds_extension.padded_era5_region(metadatum.region, metadatum.dataset, [metadatum.name])
+            arco_name = kind == "sl" ? get(arco_names, metadatum.name, dataset_names[metadatum.name]) :
+                                       dataset_names[metadatum.name]
+            println(io, join((arco_name, nc_names[metadatum.name], kind, metadatum.dates,
+                              area.longitude..., area.latitude..., path), '\t'))
+        end
+    end
+end
+
 if get(ENV, "SO_ERA5", "true") == "true"
-    @info "ERA5 parent pressure levels, $start_date → $stop_date over $(parent_region)"
-    era5_dates = NumericalEarth.DataWrangling.expand_dates(pressure_levels, :temperature, (start_date, stop_date))
-    download(MetadataSet(:temperature, :eastward_velocity, :northward_velocity, :specific_humidity,
-                         :specific_cloud_liquid_water_content, :specific_rain_water_content,
-                         :specific_cloud_ice_water_content, :specific_snow_water_content, :geopotential;
-                         dataset = pressure_levels, dates = era5_dates, region = parent_region, dir = era5_dir))
+    @info "ERA5 parent pressure levels $(pressure_level_names), $start_date → $stop_date over $(parent_region)"
+    for name in pressure_level_names
+        plan_or_download(Metadata(name; dataset = pressure_levels, dates = era5_dates, region = parent_region, dir = era5_dir), "pl")
+    end
 end
 
 if get(ENV, "SO_SNAPSHOTS", "true") == "true"
     @info "ERA5 single-level snapshots at $start_date"
-    for (name, region) in ((:geopotential, parent_region), (:mean_sea_level_pressure, BoundingBox(grid)),
-                           (:skin_temperature, parent_region))
-        download(Metadatum(name; dataset = single_levels, date = start_date, region, dir = era5_dir))
+    for (name, region) in snapshots
+        plan_or_download(Metadata(name; dataset = single_levels, dates = [start_date], region, dir = era5_dir), "sl")
     end
 end
 

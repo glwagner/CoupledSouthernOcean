@@ -1,0 +1,27 @@
+#!/bin/bash
+#SBATCH --job-name=so-arco
+#SBATCH --partition=gpua100largex4
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=64G
+#SBATCH --time=12:00:00
+#SBATCH --output=logs/%x-%j.log
+#SBATCH --open-mode=append
+# Cut the ERA5 files listed in a plan (SO_ARCO_PLAN=<plan> julia --project predownload.jl) from
+# Google's ARCO-ERA5 copy, with SO_ARCO_WORKERS processes (default 8) splitting the plan.
+#   sbatch slurm/arco.batch data/arco_plan.tsv
+source $HOME/southern-ocean/slurm/env.sh
+plan=$1
+workers=${SO_ARCO_WORKERS:-8}
+echo "=== [$(date -Is)] $plan with $workers workers on $(hostname) ==="
+$JULIA --project=tools/arco -e 'using Pkg; Pkg.instantiate()'
+for k in $(seq 1 $workers); do
+    stdbuf -oL -eL $JULIA --project=tools/arco tools/arco/arco.jl $plan $k $workers &
+done
+wait
+status=0
+remaining=$(cut -f9 $plan | while read p; do [[ -f $p ]] || echo $p; done | wc -l)
+echo "files still missing: $remaining"
+[[ $remaining -eq 0 ]] || status=1
+echo "=== [$(date -Is)] done (exit $status) ==="
+exit $status

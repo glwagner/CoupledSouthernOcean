@@ -93,6 +93,7 @@ nest = nested_atmosphere_model(grid, dataset;
                                relaxation_rate = 1/300,
                                relaxation_width = 5,
                                parent_time_indices_in_memory = 4,
+                               parent_hydrometeors,   # case.jl: cloud liquid and ice by default
                                microphysics,
                                momentum_advection = WENO(order = 5),
                                scalar_advection,
@@ -102,7 +103,9 @@ nest = nested_atmosphere_model(grid, dataset;
                                closure_kw...)
 
 child = nest.child
-era5_region = BoundingBox(nest.parent.grid)
+# The parent's download box (the child box padded as in nested_atmosphere_model), so the land's
+# skin-temperature snapshot is the file predownload.jl fetches.
+era5_region = BoundingBox(grid; padding = NumericalEarth.DataWrangling.default_horizontal_padding(dataset))
 
 # ## Surface: land, ocean, and the partition between them
 

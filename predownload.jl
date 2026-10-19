@@ -94,7 +94,9 @@ if get(ENV, "SO_GLORYS", "true") == "true"
     @info "GLORYS daily u, v, T, S, zos for $(length(glorys_dates)) days over $(glorys_region)"
     download(MetadataSet(:u_velocity, :v_velocity, :temperature, :salinity, :free_surface;
                          dataset = GLORYSDaily(), dates = glorys_dates, region = glorys_region, dir = glorys_dir))
-    download(Metadata(:depth; dataset = GLORYSStatic(), dir = glorys_dir, region = glorys_region))
+    # SO_GLORYS_STATIC=false leaves the static depth to one of several parallel jobs
+    get(ENV, "SO_GLORYS_STATIC", "true") == "true" &&
+        download(Metadata(:depth; dataset = GLORYSStatic(), dir = glorys_dir, region = glorys_region))
 end
 
 @info "done: $(length(readdir(era5_dir))) ERA5 files, $(length(readdir(glorys_dir))) GLORYS files"

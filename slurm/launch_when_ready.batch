@@ -1,0 +1,34 @@
+#!/bin/bash
+#SBATCH --job-name=so-launcher
+#SBATCH --partition=gpua100largex4
+#SBATCH --gpus=0
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=2G
+#SBATCH --time=72:00:00
+#SBATCH --output=logs/%x-%j.log
+#SBATCH --open-mode=append
+# Wait until slurm/check_inputs.sh passes for a window (domain from SO_LONGITUDE / SO_LATITUDE in the
+# environment), then submit each run. Runs are given as name:cells_per_degree:time_limit; after the
+# first, each waits for the previous run to start stepping, since runs on one domain share the
+# inpainted GLORYS caches that their setup writes.
+#   export SO_LONGITUDE=150,230 SO_LATITUDE=-67,-27
+#   sbatch --export=ALL slurm/launch_when_ready.batch 2018-01-29T00 2018-02-26T00 big12_28d:9:96:00:00 big25_28d:4.5:48:00:00
+start=$1; stop=$2; shift 2
+cd $HOME/southern-ocean
+echo "=== [$(date -Is)] waiting for inputs: ${SO_LONGITUDE:-150,190} ${SO_LATITUDE:--57,-27} $start → $stop ==="
+until slurm/check_inputs.sh $start $stop > /dev/null; do sleep 300; done
+slurm/check_inputs.sh $start $stop
+unset $(env | grep -o '^SLURM_[A-Z_]*')   # the launcher's own allocation must not leak into the runs
+
+hours=$(( ($(date -u -d "${stop/T/ }:00" +%s) - $(date -u -d "${start/T/ }:00" +%s)) / 3600 ))
+previous=""
+for run in "$@"; do
+    IFS=: read name cells limit <<< "$run"
+    if [[ -n "$previous" ]]; then
+        until grep -qE "iter +0  t = |done \(exit" logs/so-$previous.log 2>/dev/null; do sleep 60; done
+    fi
+    export SO_NAME=$name SO_CELLS_PER_DEGREE=$cells SO_OCEAN=prognostic SO_HOURS=$hours SO_START=${start}:00:00
+    job=$(sbatch --parsable --time=$limit --job-name=so-$name --export=ALL slurm/hindcast.batch)
+    echo "=== [$(date -Is)] submitted $name ($cells cells/°, $limit) as $job ==="
+    previous=$name-$job
+done

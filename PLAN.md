@@ -182,3 +182,15 @@ animate; (4) maybe higher resolution later.
   coupled_28d resubmitted alone as 3687. Throughput: big12 0.35 s/step (12× real time, ~56 h);
   big25 0.10 s/step (49×, ~14 h).
 - Output files carry the serialized boundary conditions (all GLORYS days): ~5.7 GB each for big12.
+
+## Status 2026-10-20 04:10 UTC — coupled_28d NaN
+
+- coupled_28d failed twice at the same step (iteration 6300–6480, Jan 29 ~08:00, NaN Δt in Breeze's
+  acoustic substep count), alone the second time (3687): deterministic, not the duplicate. Its ERA5
+  inputs for Jan 29 are clean (no NaN, right times/shapes).
+- With SO_NAN_CHECK_AFTER_HOURS=7.9 (every step copies all fields to the host, i.e. synchronizes)
+  the same run went to 12 h clean (3693). Suspect a GPU memory bug sensitive to timing / memory
+  contents — the StateExchanger's moving window is the prime candidate (NE's own GPU test of it,
+  test_nested_simulation.jl:573, hits an illegal memory access, also on the unmodified branch).
+- Relaunched as 3701 with SO_SYNC_EVERY_STEP=true (CUDA.synchronize() each step). To do: find the
+  out-of-bounds access with the failing test under CUDA_LAUNCH_BLOCKING / compute-sanitizer.

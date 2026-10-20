@@ -252,5 +252,45 @@ end
 
 add_callback!(simulation, progress, IterationInterval(parse(Int, get(ENV, "SO_PROGRESS", "180"))))
 
+# SO_NAN_CHECK_AFTER_HOURS: from that time on, check every step which component first holds a NaN
+# (atmosphere prognostics, land, ocean surface, interface fluxes), report where, and stop the run.
+function first_nan(name, field)
+    A = Array(interior(field))
+    n = count(isnan, A)
+    n == 0 && return nothing
+    return @sprintf("%s: %d NaN, first at %s", name, n, Tuple(findfirst(isnan, A)))
+end
+
+function nan_check(sim)
+    child = sim.model.atmosphere.model.child
+    candidates = Any[("atmosphere $name", f) for (name, f) in pairs(Oceananigans.fields(child)) if f isa Field]
+    append!(candidates, [("land T", land.temperature), ("land water", land.water_storage), ("surface Tₛ", surface_temperature(sim.model.interfaces)),
+                         ("ao sensible", ao.sensible_heat), ("ao latent", ao.latent_heat), ("ao τˣ", ao.x_momentum), ("ao τʸ", ao.y_momentum)])
+    append!(candidates, [("al $name", getproperty(al, name)) for name in propertynames(al) if getproperty(al, name) isa Field])
+    if ocean_kind == "prognostic"
+        oc = sim.model.ocean.model
+        append!(candidates, [("ocean T", oc.tracers.T), ("ocean S", oc.tracers.S), ("ocean u", oc.velocities.u),
+                             ("ocean η", oc.free_surface.displacement)])
+    end
+    reports = filter(!isnothing, [first_nan(name, f) for (name, f) in candidates])
+    isempty(reports) && return nothing
+    w = child.velocities.w
+    wmax, I = findmax(abs.(Array(interior(w))))
+    @error "NaN at iteration $(iteration(sim)), t = $(prettytime(sim))" reports max_w = (wmax, Tuple(I))
+    flush(stderr)
+    sim.running = false
+    return nothing
+end
+
+# SO_SYNC_EVERY_STEP=true: wait for the GPU after every step. coupled_28d (Jan 29) hit a NaN Δt at
+# 7.96 h twice without it, and ran clean past that point when a per-step check synchronized the GPU.
+get(ENV, "SO_SYNC_EVERY_STEP", "false") == "true" &&
+    add_callback!(simulation, sim -> CUDA.synchronize(), IterationInterval(1))
+
+if haskey(ENV, "SO_NAN_CHECK_AFTER_HOURS")
+    nan_check_start = parse(Float64, ENV["SO_NAN_CHECK_AFTER_HOURS"]) * hours
+    add_callback!(simulation, sim -> sim.model.clock.time ≥ nan_check_start && nan_check(sim), IterationInterval(1))
+end
+
 run!(simulation)
 @info "done" name

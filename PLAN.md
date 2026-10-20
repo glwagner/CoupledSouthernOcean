@@ -164,3 +164,21 @@ animate; (4) maybe higher resolution later.
   Surface currents up to 1.7–2.8 m/s in the 4 m top cell near Cook Strait / Taranaki — high,
   to keep an eye on. Median MLD 21 m. Animation: 3098.
 - NE fix also on local branch glw/exchanger-halo-fix-753 (off #753, CPU tests pass); not pushed.
+
+## Status 2026-10-20 02:20 UTC
+
+- Greg (2026-10-18): two more runs on a doubled domain, northwest corner fixed, expanding south and
+  east: 150°E–130°W × 27°S–67°S (latitude capped at 67°S; doubling to 87°S would hit the Antarctic ice
+  sheet and the pole), at 12 km (720×360) and 25 km (360×180, SO_CELLS_PER_DEGREE=4.5). All runs
+  already Float32 (Float64 clock).
+- ERA5 now comes from Google's ARCO-ERA5 (tools/arco, slurm/arco.batch): 7032 files for both domains
+  in 15 min, identical to CDS files to GRIB packing precision. The parent carries cloud liquid + ice
+  only (ARCO has no rain/snow water content; NE 89a28bfee adds `hydrometeors`).
+- GLORYS: Copernicus Marine timed out with 16 concurrent jobs; 2 per domain worked.
+- 2026-10-20: both the in-session launchers (thought dead) and the Slurm launchers fired, so every run
+  was submitted twice into the same run directory. Duplicates segfaulted in setup (3669, 3671) and
+  two of the originals hit a NaN Δt (3668 at 8 h, 3674 at once); the same configuration as 3674 runs
+  fine (3676), so the failures were not set by the data. Survivors: big12 3670, big25 3676.
+  coupled_28d resubmitted alone as 3687. Throughput: big12 0.35 s/step (12× real time, ~56 h);
+  big25 0.10 s/step (49×, ~14 h).
+- Output files carry the serialized boundary conditions (all GLORYS days): ~5.7 GB each for big12.

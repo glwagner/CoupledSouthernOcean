@@ -194,3 +194,18 @@ animate; (4) maybe higher resolution later.
   test_nested_simulation.jl:573, hits an illegal memory access, also on the unmodified branch).
 - Relaunched as 3701 with SO_SYNC_EVERY_STEP=true (CUDA.synchronize() each step). To do: find the
   out-of-bounds access with the failing test under CUDA_LAUNCH_BLOCKING / compute-sanitizer.
+
+## Status 2026-10-20 07:20 UTC — NaN diagnosis and CFL 0.4
+
+- The 28-day coupled_28d NaN is deterministic (also with per-step GPU sync, 3701). Per-step check
+  (3708): clean through iteration 6396, then at 6397 (Jan 29 08:04) 113 whole columns NaN at once
+  (5650 = 113 × 50 levels), first at i = 20, j = 254–257 (≈152.2°E, 28.7°S, the ranges behind the
+  Gold Coast). The strongest updraft (20 m/s over the North Island) is elsewhere. A column-wise
+  failure over steep terrain, not radiation (the hourly RRTMGP update is 62 steps earlier) and not
+  the inputs. big25 (CFL 0.5) died the same way at 7.3 days (Feb 5 ~08 UTC).
+- CFL 0.4 (Δt ≈ 3.5 s) takes coupled_28d past the failure (3709). Restarted big25 (3712) and big12
+  (3713, big12_28d_cfl04) at CFL 0.4; cancelled the CFL 0.5 big12 (3670, at 2.7 days) for disk:
+  /home has 65 GB free and a 28-day big12 run writes ~33 GB.
+- To do: the column instability itself (terrain-following acoustic substeps over steep terrain?);
+  NE GPU illegal access in compute_child_prognostics! (test_nested_simulation.jl:573, blocking
+  launches point to breeze_state_exchanger.jl:162); output files carry serialized boundary conditions.

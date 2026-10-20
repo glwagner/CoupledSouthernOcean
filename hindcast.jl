@@ -273,12 +273,18 @@ function nan_check(sim)
                              ("ocean η", oc.free_surface.displacement)])
     end
     reports = filter(!isnothing, [first_nan(name, f) for (name, f) in candidates])
-    isempty(reports) && return nothing
-    w = child.velocities.w
-    wmax, I = findmax(abs.(Array(interior(w))))
-    @error "NaN at iteration $(iteration(sim)), t = $(prettytime(sim))" reports max_w = (wmax, Tuple(I))
+    w = Array(interior(child.velocities.w))
+    ρᵈ = Array(interior(child.dynamics.dry_density))
+    wmax, I = findmax(abs.(replace(w, NaN32 => 0)))
+    ρmin, J = findmin(replace(ρᵈ, NaN32 => Inf32))
+    @info @sprintf("nan check: iter %d  t = %s  Δt = %.2f  max|w| = %.2f at %s  min ρᵈ = %.4f at %s  land T ∈ [%.1f, %.1f]",
+                   iteration(sim), prettytime(sim), sim.Δt, wmax, Tuple(I), ρmin, Tuple(J), extrema(Array(interior(land.temperature)))...)
+    if !isempty(reports)
+        foreach(r -> @error(r), reports)
+        @error "NaN at iteration $(iteration(sim)), t = $(prettytime(sim))"
+        sim.running = false
+    end
     flush(stderr)
-    sim.running = false
     return nothing
 end
 

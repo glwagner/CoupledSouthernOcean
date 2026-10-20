@@ -209,3 +209,17 @@ animate; (4) maybe higher resolution later.
 - To do: the column instability itself (terrain-following acoustic substeps over steep terrain?);
   NE GPU illegal access in compute_child_prognostics! (test_nested_simulation.jl:573, blocking
   launches point to breeze_state_exchanger.jl:162); output files carry serialized boundary conditions.
+
+## Status 2026-10-20 15:30 UTC — divergence damping
+
+- coupled_28d at CFL 0.4 (3709) went NaN at 3.08 days (Feb 1 02 UTC). A replay with the per-step
+  check from 73.8 h (3716) ran clean to 80 h: the failure is not reproducible over days. Together with
+  the 7.96 h failure (3 of 4 runs, one clean), this reads as a marginal instability tipped by GPU
+  round-off, not a memory bug. NE's GPU test failure (test_nested_simulation.jl:573) is an NVPTX
+  compiler segfault on the Float64 test grid (tests/exchanger_bounds.jl), unrelated.
+- NE's nested child has no acoustic divergence damping (NoDivergenceDamping; the thermal-proxy damper
+  pushes on a cold start). SO_DIVERGENCE_DAMPING=α now builds the child with Breeze's
+  DirectDivergenceDamping (Klemp et al. 2018, no cold-start force) and NE's default sponge and base
+  pressure. α = 0.1 at CFL 0.5 (3722) passed the 7.96 h failure.
+- Running: coupled_28d (3721, CFL 0.4, undamped), coupled_28d_damp (3723, CFL 0.5, α = 0.1),
+  big25_28d (3712), big12_28d_cfl04 (3713). If big12 fails, restart it damped.

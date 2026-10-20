@@ -86,6 +86,20 @@ else
     error("SO_CLOSURE must be tke or none")
 end
 
+# SO_DIVERGENCE_DAMPING=α: acoustic divergence damping (Klemp, Skamarock & Ha 2018) with coefficient α
+# (MPAS's 0.1). NumericalEarth's default child has none, and whole columns over steep terrain went NaN
+# (CFL 0.5 at 8 h, CFL 0.4 at 3 days). The direct form avoids the thermal proxy's cold-start force, the
+# reason NumericalEarth turned damping off. The lid sponge and base pressure are NumericalEarth's defaults.
+divergence_damping = parse(Float64, get(ENV, "SO_DIVERGENCE_DAMPING", "0"))
+dynamics_kw = if divergence_damping > 0
+    base_pressure = breeze_extension.mean_sea_level_pressure(dataset, grid, start_date, era5_dir)
+    sponge = UpperSponge(; damping_rate = 1/5, depth = breeze_extension.default_lid_depth(grid))
+    damping = DirectDivergenceDamping(coefficient = divergence_damping)
+    (; base_pressure, dynamics = CompressibleDynamics(SplitExplicitTimeDiscretization(; sponge, damping); base_pressure))
+else
+    NamedTuple()
+end
+
 nest = nested_atmosphere_model(grid, dataset;
                                dates,
                                dir = era5_dir,
@@ -100,7 +114,8 @@ nest = nested_atmosphere_model(grid, dataset;
                                # Float64 time on the Float32 grid (NE's default clock is Float32,
                                # 0.25 s resolution at 4 weeks); also matches the ocean's clock
                                clock = Clock(grid),
-                               closure_kw...)
+                               closure_kw...,
+                               dynamics_kw...)
 
 child = nest.child
 # The parent's download box (the child box padded as in nested_atmosphere_model), so the land's
@@ -277,16 +292,30 @@ function nan_check(sim)
     ρᵈ = Array(interior(child.dynamics.dry_density))
     wmax, I = findmax(abs.(replace(w, NaN32 => 0)))
     ρmin, J = findmin(replace(ρᵈ, NaN32 => Inf32))
-    @info @sprintf("nan check: iter %d  t = %s  Δt = %.2f  max|w| = %.2f at %s  min ρᵈ = %.4f at %s  land T ∈ [%.1f, %.1f]",
+    msg = @sprintf("nan check: iter %d  t = %s  Δt = %.2f  max|w| = %.2f at %s  min ρᵈ = %.4f at %s  land T ∈ [%.1f, %.1f]",
                    iteration(sim), prettytime(sim), sim.Δt, wmax, Tuple(I), ρmin, Tuple(J), extrema(Array(interior(land.temperature)))...)
-    if !isempty(reports)
+    if haskey(Oceananigans.fields(child), :ρe)
+        ρe = replace(Array(interior(Oceananigans.fields(child).ρe)), NaN32 => 0)
+        (emin, K), (emax, L) = findmin(ρe), findmax(ρe)
+        msg *= @sprintf("  ρe ∈ [%.3e at %s, %.3e at %s]", emin, Tuple(K), emax, Tuple(L))
+    end
+    @info msg
+    state = Dict(string(name) => Array(interior(f)) for (name, f) in candidates)
+    if isempty(reports)
+        previous_state[] = state
+    else
         foreach(r -> @error(r), reports)
         @error "NaN at iteration $(iteration(sim)), t = $(prettytime(sim))"
+        # The last clean state and the first broken one, for working out where the NaN started
+        jldsave(joinpath(rundir, "nan_dump.jld2"); previous = previous_state[], current = state,
+                iteration = iteration(sim), Δt = sim.Δt)
         sim.running = false
     end
     flush(stderr)
     return nothing
 end
+
+const previous_state = Ref{Any}(nothing)
 
 # SO_SYNC_EVERY_STEP=true: wait for the GPU after every step. coupled_28d (Jan 29) hit a NaN Δt at
 # 7.96 h twice without it, and ran clean past that point when a per-step check synchronized the GPU.

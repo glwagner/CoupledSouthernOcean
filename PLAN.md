@@ -223,3 +223,22 @@ animate; (4) maybe higher resolution later.
   pressure. α = 0.1 at CFL 0.5 (3722) passed the 7.96 h failure.
 - Running: coupled_28d (3721, CFL 0.4, undamped), coupled_28d_damp (3723, CFL 0.5, α = 0.1),
   big25_28d (3712), big12_28d_cfl04 (3713). If big12 fails, restart it damped.
+
+## Status 2026-10-22 04:30 UTC
+
+- big25_28d (3712) finished all 28 days; animation 3852. big12_28d_cfl04 (3713) went NaN at 12.57 days
+  (Feb 10 13:46 UTC); its output to then is in runs/big12_28d_cfl04. coupled_28d at CFL 0.4 failed
+  again at exactly iteration 75600 (3721 = 3709), and the damped CFL 0.5 run (3723) at 2.35 days.
+- The failures are deterministic per configuration. Short runs (SO_HOURS 12–80) passed only because
+  their trajectories differ by ms from iteration 180 on (an input-length effect) and miss the event;
+  the "passing" damping test was such a short run. Divergence damping does not fix it.
+- The cheap per-step NaN check (device reductions + device copy of the last clean state, nan_dump.jld2)
+  caught the CFL 0.5 failure at iteration 6397 (diag_c05). The broken cells are an exact L1 diamond of
+  radius 7 around ONE column, interior (20, 262) ≈ 152.2°E, 27.9°S (Scenic Rim), all levels. One
+  step earlier that column is benign (|w| < 0.7 m/s, ordinary fluxes, TKE and cloud). So a single
+  column fails inside one step — a discrete failure (division, singular solve, microphysics), not a
+  growing instability — and the NaN spreads one cell per horizontal stencil application.
+- debug_step.jl (SO_DEBUG_ITERATION, SO_DEBUG_COLUMN) re-runs that step through a copy of Breeze's
+  AcousticRungeKutta3 time_step! that checks every reachable field after each phase (3853).
+  SO_OCEAN_OUTPUT=false keeps such replays from writing GBs of serialized boundary conditions.
+- /home hit 100% (14 GB free); removed my diagnostic runs coupled_28d_nan and diag_c05's ocean files.

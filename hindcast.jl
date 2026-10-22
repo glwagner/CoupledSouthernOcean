@@ -231,7 +231,11 @@ simulation.output_writers[:surface] = JLD2Writer(model, surface_fields;
                                                  filename = joinpath(rundir, "surface.jld2"),
                                                  overwrite_files = true)
 
-ocean_kind == "prognostic" && add_ocean_output!(simulation, ocean, rundir, output_interval)
+# SO_OCEAN_OUTPUT=false skips the ocean files (each carries the serialized GLORYS boundary conditions,
+# GBs) for diagnostic replays. Their hourly schedule coincides with the surface file's, so the time
+# steps, which align to output times, are unchanged within the first day.
+ocean_kind == "prognostic" && get(ENV, "SO_OCEAN_OUTPUT", "true") == "true" &&
+    add_ocean_output!(simulation, ocean, rundir, output_interval)
 
 jldsave(joinpath(rundir, "static.jld2");
         ocean_fraction = Array(interior(ocean_fraction))[:, :, 1],
@@ -267,8 +271,9 @@ end
 
 add_callback!(simulation, progress, IterationInterval(parse(Int, get(ENV, "SO_PROGRESS", "180"))))
 
-# SO_NAN_CHECK_AFTER_HOURS: from that time on, check every step which component first holds a NaN
-# (atmosphere prognostics, land, ocean surface, interface fluxes), report where, and stop the run.
+# SO_NAN_CHECK_AFTER_HOURS: from that time on, check every step for a NaN or Inf in the atmosphere prognostics,
+# land, ocean and interface fluxes (cheap: device reductions and copies); on one, report where, save the
+# last clean state and the broken one to nan_dump.jld2, and stop the run.
 function first_nan(name, field)
     A = Array(interior(field))
     n = count(isnan, A)
@@ -276,7 +281,7 @@ function first_nan(name, field)
     return @sprintf("%s: %d NaN, first at %s", name, n, Tuple(findfirst(isnan, A)))
 end
 
-function nan_check(sim)
+function nan_check_candidates(sim)
     child = sim.model.atmosphere.model.child
     candidates = Any[("atmosphere $name", f) for (name, f) in pairs(Oceananigans.fields(child)) if f isa Field]
     append!(candidates, [("land T", land.temperature), ("land water", land.water_storage), ("surface Tₛ", surface_temperature(sim.model.interfaces)),
@@ -287,6 +292,25 @@ function nan_check(sim)
         append!(candidates, [("ocean T", oc.tracers.T), ("ocean S", oc.tracers.S), ("ocean u", oc.velocities.u),
                              ("ocean η", oc.free_surface.displacement)])
     end
+    return candidates
+end
+
+# The cheap part, every step: one reduction per field on the device, and a device copy of each field
+# while all are finite, so the last clean state survives the step that breaks.
+function nan_check(sim)
+    candidates = nan_check_candidates(sim)
+    if isnothing(previous_state[])
+        previous_state[] = [copy(parent(f)) for (_, f) in candidates]
+    end
+    if all(((_, f),) -> isfinite(sum(f)), candidates)
+        foreach(((saved, (_, f)),) -> copyto!(saved, parent(f)), zip(previous_state[], candidates))
+        return nothing
+    end
+    return nan_report(sim, candidates)
+end
+
+function nan_report(sim, candidates)
+    child = sim.model.atmosphere.model.child
     reports = filter(!isnothing, [first_nan(name, f) for (name, f) in candidates])
     w = Array(interior(child.velocities.w))
     ρᵈ = Array(interior(child.dynamics.dry_density))
@@ -300,17 +324,15 @@ function nan_check(sim)
         msg *= @sprintf("  ρe ∈ [%.3e at %s, %.3e at %s]", emin, Tuple(K), emax, Tuple(L))
     end
     @info msg
-    state = Dict(string(name) => Array(interior(f)) for (name, f) in candidates)
-    if isempty(reports)
-        previous_state[] = state
-    else
-        foreach(r -> @error(r), reports)
-        @error "NaN at iteration $(iteration(sim)), t = $(prettytime(sim))"
-        # The last clean state and the first broken one, for working out where the NaN started
-        jldsave(joinpath(rundir, "nan_dump.jld2"); previous = previous_state[], current = state,
-                iteration = iteration(sim), Δt = sim.Δt)
-        sim.running = false
-    end
+    foreach(r -> @error(r), reports)
+    @error "NaN or Inf at iteration $(iteration(sim)), t = $(prettytime(sim))"
+    # The last clean state and the first broken one (parent arrays, halos included), for working out
+    # where the NaN started
+    names = [name for (name, _) in candidates]
+    jldsave(joinpath(rundir, "nan_dump.jld2"); names,
+            previous = [Array(a) for a in previous_state[]], current = [Array(parent(f)) for (_, f) in candidates],
+            iteration = iteration(sim), Δt = sim.Δt)
+    sim.running = false
     flush(stderr)
     return nothing
 end
@@ -326,6 +348,8 @@ if haskey(ENV, "SO_NAN_CHECK_AFTER_HOURS")
     nan_check_start = parse(Float64, ENV["SO_NAN_CHECK_AFTER_HOURS"]) * hours
     add_callback!(simulation, sim -> sim.model.clock.time ≥ nan_check_start && nan_check(sim), IterationInterval(1))
 end
+
+haskey(ENV, "SO_DEBUG_ITERATION") && include("debug_step.jl")
 
 run!(simulation)
 @info "done" name

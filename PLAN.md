@@ -242,3 +242,17 @@ animate; (4) maybe higher resolution later.
   AcousticRungeKutta3 time_step! that checks every reachable field after each phase (3853).
   SO_OCEAN_OUTPUT=false keeps such replays from writing GBs of serialized boundary conditions.
 - /home hit 100% (14 GB free); removed my diagnostic runs coupled_28d_nan and diag_c05's ocean files.
+
+## Status 2026-10-22 07:00 UTC — root cause: Breeze's saturation-adjustment secant solve
+
+- debug_step.jl at iteration 6396 of the CFL 0.5 replay: after stage 1 the prognostics are finite;
+  stage 1's update_state! returns NaN T, p, qᵛ, qˡ, qⁱ in one cell, (20, 262, 14) (~2.5 km over the
+  Scenic Rim). From there the NaN spreads (acoustic substeps, then everything).
+- tests/gpu_cell.jl replays that cell from the saved column (debug_columns.jld2) on CPU and GPU with
+  the same Float32 inputs: CPU converges (T = 282.28 K, residual −9.2e-5 < abstol 1e-4); the GPU reaches
+  the same root with residual −1.04e-4 > abstol, takes a one-ulp step, the residual is unchanged to
+  rounding, the secant slope is −4.2e6, T jumps to −155 K and the residual is NaN.
+- Breeze.Solvers.secant_solve stops only on |r| ≤ 1e-4 K — the Float32 rounding noise of a θ difference
+  near 300 K — and guards only an exactly zero denominator. breeze_fixes.jl overrides it to refuse a
+  step larger than twice the previous one (secant steps shrink near the root). Included by hindcast.jl.
+- Verifying: the cell with the fix (3910); the CFL 0.5 full-length run past the old failure (3911).

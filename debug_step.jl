@@ -46,6 +46,7 @@ finite(a::Field) = isfinite(sum(interior(a)))
 finite(a) = isfinite(sum(a))
 
 const already_bad = Set{String}()
+const debug_columns = Any[]
 
 function debug_check(model, label)
     debug_step[] || return nothing
@@ -62,6 +63,13 @@ function debug_check(model, label)
     i, j = debug_column[]
     profile = ""
     if i > 0
+        # Every 3-D field's column at (i, j), saved after the step to debug_columns.jld2
+        columns = Dict{String, Vector}()
+        for (name, a) in debug_arrays(model)
+            a isa Field && ndims(interior(a)) == 3 && size(interior(a), 3) > 1 || continue
+            columns[name] = Array(interior(a, i:i, j:j, :))[1, 1, :]
+        end
+        push!(debug_columns, (label, columns))
         ρw = Array(interior(model.momentum.ρw))[i, j, :]
         ρθ = Array(interior(thermodynamic_density(model.formulation)))[i, j, :]
         profile = @sprintf("  column (%d, %d): max|ρw| = %.3g, ρθ ∈ [%.4g, %.4g]", i, j,
@@ -139,6 +147,10 @@ end
 debug_iteration = parse(Int, ENV["SO_DEBUG_ITERATION"])
 haskey(ENV, "SO_DEBUG_COLUMN") && (debug_column[] = Tuple(parse.(Int, split(ENV["SO_DEBUG_COLUMN"], ','))))
 function arm_debug_step(sim)
+    if iteration(sim) == debug_iteration + 1 && !isempty(debug_columns)
+        jldsave(joinpath(rundir, "debug_columns.jld2"); labels = first.(debug_columns), columns = last.(debug_columns),
+                column = debug_column[], constants = sim.model.atmosphere.model.child.thermodynamic_constants)
+    end
     debug_step[] = iteration(sim) == debug_iteration
     debug_step[] && @info "debug step: checking every phase of the step from iteration $debug_iteration"
     iteration(sim) > debug_iteration && (sim.running = false)

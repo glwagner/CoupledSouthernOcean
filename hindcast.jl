@@ -28,6 +28,8 @@ using Statistics: mean
 import Dates   # not `using`: Dates' hour/day/second clash with Oceananigans.Units
 using Dates: DateTime, Day, Hour, Second, Millisecond, value
 
+include("breeze_fixes.jl")   # a guarded saturation-adjustment secant solve (the NaN in the 28-day runs)
+
 include("case.jl")
 
 arch = GPU()

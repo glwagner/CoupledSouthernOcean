@@ -256,3 +256,16 @@ animate; (4) maybe higher resolution later.
   near 300 K — and guards only an exactly zero denominator. breeze_fixes.jl overrides it to refuse a
   step larger than twice the previous one (secant steps shrink near the root). Included by hindcast.jl.
 - Verifying: the cell with the fix (3910); the CFL 0.5 full-length run past the old failure (3911).
+
+## Status 2026-10-22 08:10 UTC — fix verified; 28-day runs relaunched
+
+- 3910: with breeze_fixes.jl the failing cell gives T = 282.2824 K, qᵛ = 9.912e-3, qˡ = 9.715e-4 on the
+  GPU, identical to the CPU. 3911 (fix_c05, the configuration that went NaN at iteration 6397) ran
+  clean to its stop at iteration 20000 (1.05 days) with the per-step NaN check on.
+- /home is full (19 GB free), so new runs write to /shared/greg_aeolus_earth/southern-ocean-runs/<name>
+  with runs/<name> a symlink (hindcast.jl and animate.batch are unchanged).
+- Relaunched at CFL 0.5 with the fix and the per-step NaN check: coupled_28d_v2 (3919, original
+  domain, 12 km) and big12_28d_v2 (3921, SO_LONGITUDE=150,230, SO_LATITUDE=-67,-27, 9 cells/degree).
+  big25_28d already finished without the fix and is not rerun.
+- sbatch --export splits values at commas: pass SO_LATITUDE/SO_LONGITUDE by exporting them in the
+  shell and using --export=ALL.

@@ -5,23 +5,25 @@
 # of potential temperatures near 300 K (one ulp = 3e-5 K). The coupled runs went NaN where an
 # iteration converged to the root with a residual of 1.04e-4: the next step moved T by one ulp, the
 # residual did not change, the slope Δx/Δr was −4e6, and T jumped to −155 K (tests/gpu_cell.jl,
-# the cell at (20, 262, 14) of diag_step). Breeze guards only a zero denominator. Here a step is
-# also refused when it is more than twice the previous one: near the root secant steps shrink, so a
-# growing step is noise.
+# the cell at (20, 262, 14) of diag_step). As in NumericalEarth/Breeze.jl#1108, the solve stops
+# once |r| ≤ 30 eps(scale), the residual's rounding noise, whatever the solver's tolerances.
+# (coupled_28d_v2 and big12_28d_v2 ran with an earlier form that refused steps growing past twice
+# the previous one.)
 @inline function Breeze.Solvers.secant_solve(residual, solver::Breeze.Solvers.SecantSolver, x₁, x₂, scale)
     r₁ = residual(x₁)
     r₂ = residual(x₂)
+    tolerance = max(solver.abstol, solver.reltol * abs(scale), 30 * eps(abs(scale)))
     iter = 0
-    while abs(r₂) > max(solver.abstol, solver.reltol * abs(scale)) && iter < solver.maxiter
-        Δx = - r₂ * (x₂ - x₁) / (r₂ - r₁)
-        valid_step = isfinite(Δx) & (abs(Δx) ≤ 2 * abs(x₂ - x₁))
-        Δx = ifelse(valid_step, Δx, zero(Δx))
+    while abs(r₂) > tolerance && iter < solver.maxiter
+        ΔxΔr = (x₂ - x₁) / (r₂ - r₁)
+        valid_step = isfinite(ΔxΔr)
+        ΔxΔr = ifelse(valid_step, ΔxΔr, zero(ΔxΔr))
 
         x₁, r₁ = x₂, r₂
-        x₂ += Δx
+        x₂ -= r₂ * ΔxΔr
         r₂ = residual(x₂)
 
-        # Ends the loop at the next header check when the step was refused
+        # Ends the loop at the next header check when the slope was degenerate
         r₂ = ifelse(valid_step, r₂, zero(r₂))
         iter += 1
     end

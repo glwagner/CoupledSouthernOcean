@@ -269,3 +269,16 @@ animate; (4) maybe higher resolution later.
   big25_28d already finished without the fix and is not rerun.
 - sbatch --export splits values at commas: pass SO_LATITUDE/SO_LONGITUDE by exporting them in the
   shell and using --export=ALL.
+
+## Status 2026-10-22 20:00 UTC — Breeze PR; runs past the old failures
+
+- NumericalEarth/Breeze.jl#1108 (branch glw/secant-float32-tolerance): secant_solve stops once
+  |r| ≤ 30 eps(scale), the residual's rounding noise, whatever the solver's tolerances. 30 ulps is
+  9e-4 K in Float32 (9× the observed noise); 100 ulps broke instantaneous_precipitation's Float32
+  parity test. Test subset on an A100 with BREEZE_TEST_FLOAT32=true: all pass except a Float32
+  check in cloud_microphysics_1M.jl (lines 1137/1139) that fails identically on main.
+- breeze_fixes.jl now carries the PR's form. coupled_28d_v2 and big12_28d_v2 started with the
+  earlier step-growth guard (commit fb268d9).
+- coupled_28d_v2 at 13.7 days (old failure 3.1 days); big12_28d_v2 at 5.3 days (old 12.6 days).
+- Follow-up (user): NumericalEarth's nested default should become P3 with prognostic saturation
+  excess instead of saturation adjustment, once the P3 optimizations land.

@@ -3,7 +3,7 @@
 # Atmosphere panels from surface.jld2: near-surface wind speed with surface-pressure contours over
 # the ocean, precipitation rate, surface skin temperature, and surface turbulent heat loss over the
 # ocean. When the run has a prognostic ocean (ocean_surface.jld2), ocean panels are added: SST change
-# since the start, mixed-layer depth, and surface current speed. Coastlines are the þ = 1/2 contour.
+# since the start and surface current speed (six panels in all). Coastlines are the þ = 1/2 contour.
 
 using CairoMakie
 using JLD2
@@ -67,7 +67,7 @@ heat_loss = @lift (centered(atmosphere, "Qᵒᶜ_sensible", $frame_iteration) .+
                    centered(atmosphere, "Qᵒᶜ_latent", $frame_iteration)) .* ocean_mask
 
 has_ocean = !isnothing(ocean)
-fig = Figure(size = has_ocean ? (1800, 1050) : (1400, 1050), fontsize = 15)
+fig = Figure(size = has_ocean ? (1800, 820) : (1400, 1050), fontsize = 15)
 title = @lift @sprintf("New Zealand hindcast — %s UTC",
                        Dates.format(start_date + Millisecond(round(Int, 1000 * $frame_time)), "yyyy-mm-dd HH:MM"))
 Label(fig[0, 1:(has_ocean ? 6 : 4)], title; fontsize = 22, tellwidth = false)
@@ -99,20 +99,15 @@ coastline!(ax); Colorbar(fig[2, 4], hm)
 if has_ocean
     oi = @lift ocean_frame($frame_time)
     ΔT = @lift (centered(ocean, "T", $oi) .- T₀) .* ocean_mask
-    mld = @lift centered(ocean, "mld", $oi) .* ocean_mask
     speed = @lift sqrt.(centered(ocean, "u", $oi) .^ 2 .+ centered(ocean, "v", $oi) .^ 2) .* ocean_mask
 
     ax = map_axis((1, 5), "SST change since start (°C)")
     hm = heatmap!(ax, λ, φ, ΔT; colormap = :balance, colorrange = (-3, 3), nan_color = :gray80)
     coastline!(ax); Colorbar(fig[1, 6], hm)
 
-    ax = map_axis((2, 5), "Mixed-layer depth (m)")
-    hm = heatmap!(ax, λ, φ, mld; colormap = :deep, colorrange = (0, 150), nan_color = :gray80)
-    coastline!(ax); Colorbar(fig[2, 6], hm)
-
-    ax = map_axis((3, 5), "Surface current speed (m s⁻¹)")
+    ax = map_axis((2, 5), "Surface current speed (m s⁻¹)")
     hm = heatmap!(ax, λ, φ, speed; colormap = :speed, colorrange = (0, 1), nan_color = :gray80)
-    coastline!(ax); Colorbar(fig[3, 6], hm)
+    coastline!(ax); Colorbar(fig[2, 6], hm)
 end
 
 output = joinpath(rundir, "animation.mp4")
